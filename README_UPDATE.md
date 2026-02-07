@@ -1,4 +1,4 @@
-# ProCeviri V2.3 - Güncellemeler ve Değişiklikler
+# ProCeviri V2 - Güncellemeler ve Değişiklikler
 
 ## 🚀 **Yeni Özellikler**
 
@@ -93,4 +93,4 @@ ProCeviri_V2/
 
 ---
 
-**ProCeviri V2.3** - Artık daha akıllı, daha hızlı ve daha güvenilir! 🚀
+**ProCeviri V2** - Artık daha akıllı, daha hızlı ve daha güvenilir! 🚀
