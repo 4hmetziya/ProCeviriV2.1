@@ -933,7 +933,7 @@ def process_pdf_logic(input_path, output_path, api_key, job_id, source_lang, tar
         
         # Her sayfanın altına küçük, gri filigran (branding) ekle
         try:
-            watermark_text = "Translated by ProCeviri AI | Dev: Ahmet Ziya OGUZ"
+            watermark_text = "Translated by ProCeviriAI | Dev: Ahmet Ziya OGUZ"
             watermark_font = "Helvetica-Oblique"
             watermark_size = 7
             c.setFont(watermark_font, watermark_size)
