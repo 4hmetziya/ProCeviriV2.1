@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRO PDF Çevirici</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwind tema & dark mode yapılandırması
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans flex flex-col">
+<script>
+    // Tema tercihini olabildiğince erken uygula (flicker'ı azaltmak için)
+    (function () {
+        try {
+            const storedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const htmlEl = document.documentElement;
+
+            if (storedTheme === 'dark' || (!storedTheme && prefersDark)) {
+                htmlEl.classList.add('dark');
+            } else {
+                htmlEl.classList.remove('dark');
+            }
+        } catch (e) {
+            // localStorage erişilemezse sessizce geç
+        }
+    })();
+</script>
+
+<main class="flex-1 flex flex-col items-center justify-center py-8">
+
+<div id="main-card" class="w-full max-w-4xl px-4">
+    <!-- Dark Mode Toggle -->
+    <button
+        id="theme-toggle"
+        type="button"
+        class="fixed top-4 right-4 z-50 inline-flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 bg-white/80 text-yellow-500 shadow-sm backdrop-blur-sm hover:bg-white dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-100 transition"
+        aria-label="Tema Değiştir"
+    >
+        <!-- Güneş (Light Mode) -->
+        <span class="inline-flex dark:hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="12" r="4"></circle>
+                <path d="M12 2v2.5M12 19.5V22M4.22 4.22l1.77 1.77M17.99 17.99l1.79 1.79M2 12h2.5M19.5 12H22M4.22 19.78l1.77-1.77M17.99 6.01l1.79-1.79"></path>
+            </svg>
+        </span>
+        <!-- Ay (Dark Mode) -->
+        <span class="hidden dark:inline-flex">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21 12.79A9 9 0 0 1 12.21 3 7 7 0 1 0 21 12.79z"></path>
+            </svg>
+        </span>
+    </button>
+
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 p-8 md:p-10">
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>📄</span> PDF Çevirici Pro
+                </h1>
+                <p class="text-xs text-slate-400 dark:text-slate-400 mt-1">v50.0 • Ultimate Edition</p>
+            </div>
+            <div class="hidden md:flex flex-col items-end text-right text-xs text-slate-400 dark:text-slate-300">
+                <span class="uppercase tracking-wide font-medium text-slate-500 dark:text-slate-200">AI Destekli Çeviri</span>
+                <span>PDF → Çok Dilli Akıllı Çeviri</span>
+            </div>
+        </div>
+
+        <form id="upload-form" class="space-y-6">
+            <!-- Dosya Yükleme Alanı -->
+            <label class="block">
+                <span class="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">PDF Dosyası</span>
+                <div class="relative border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl px-6 py-8 bg-slate-50/60 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer transition-colors flex flex-col items-center justify-center text-center">
+                    <div class="flex items-center justify-center w-14 h-14 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 mb-3">
+                        <span class="text-3xl">📂</span>
+                    </div>
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-200">
+                        PDF dosyasını sürükleyip bırakın veya <span class="text-blue-600 dark:text-blue-400 underline">tıklayın</span>
+                    </p>
+                    <p id="file-name" class="mt-1 text-xs text-slate-500 dark:text-slate-300">Maksimum boyut: 50MB</p>
+                    <input
+                        type="file"
+                        name="file"
+                        accept=".pdf"
+                        required
+                        class="absolute inset-0 opacity-0 cursor-pointer"
+                        onchange="document.getElementById('file-name').innerText = this.files[0] ? this.files[0].name : 'Maksimum boyut: 50MB';"
+                    >
+                </div>
+            </label>
+
+            <!-- Dil ve Ton Ayarları -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-sm font-medium text-slate-700 dark:text-slate-200">Kaynak Dil</label>
+                    <select
+                        name="source_lang"
+                        class="block w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2.5 text-sm text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none transition"
+                    >
+                        <option value="auto" selected>Otomatik (auto)</option>
+                        <option value="en">İngilizce (en)</option>
+                        <option value="tr">Türkçe (tr)</option>
+                        <option value="de">Almanca (de)</option>
+                    </select>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-sm font-medium text-slate-700 dark:text-slate-200">Hedef Dil</label>
+                    <select
+                        name="target_lang"
+                        class="block w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2.5 text-sm text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none transition"
+                    >
+                        <option value="tr" selected>Türkçe (tr)</option>
+                        <option value="en">İngilizce (en)</option>
+                        <option value="de">Almanca (de)</option>
+                        <option value="fr">Fransızca (fr)</option>
+                        <option value="es">İspanyolca (es)</option>
+                    </select>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-sm font-medium text-slate-700 dark:text-slate-200">Çeviri Tonu</label>
+                    <select
+                        name="translation_tone"
+                        class="block w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2.5 text-sm text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none transition"
+                    >
+                        <option value="general" selected>Genel Çeviri (general)</option>
+                        <option value="academic">Teknik/Akademik Çeviri (academic)</option>
+                        <option value="technical">Kod Odaklı Çeviri (technical)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- AI Gelişmiş Çeviri Kullan -->
+            <div class="space-y-3">
+                <label class="flex items-center justify-between cursor-pointer">
+                    <span class="text-sm font-medium text-slate-700 dark:text-slate-200">
+                        AI Gelişmiş Çeviri Kullan
+                    </span>
+                    <!-- Modern Toggle Switch -->
+                    <div class="relative">
+                        <input
+                            type="checkbox"
+                            id="use-ai-toggle"
+                            name="use_ai"
+                            class="sr-only peer"
+                        >
+                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-emerald-600 peer-checked:dark:bg-emerald-500"></div>
+                    </div>
+                </label>
+                <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Etkinleştirildiğinde, <span class="font-semibold text-emerald-600 dark:text-emerald-400">Groq AI motoru</span> kullanılır ve daha yüksek kalitede çeviri yapılır.
+                </p>
+            </div>
+
+            <!-- API Key (Daha Az Dikkat Çekici) - AI Kapalı İken Gizli -->
+            <div id="api-key-section" class="pt-3 border-t border-slate-100 dark:border-slate-700" style="display: none;">
+                <label class="block text-xs font-medium text-slate-500 dark:text-slate-300 mb-1.5">
+                    Groq API Key
+                    <span class="font-normal text-slate-400 dark:text-slate-400">(Opsiyonel)</span>
+                </label>
+                <div class="relative">
+                    <input
+                        id="groq-api-key"
+                        type="password"
+                        name="api_key"
+                        placeholder="Gelişmiş çeviri kalitesi için Groq API anahtarınızı girin"
+                        class="block w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 pr-20 text-xs text-slate-700 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/40 outline-none transition"
+                    >
+                    <button
+                        type="button"
+                        id="toggle-password"
+                        class="absolute right-8 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
+                        title="API anahtarını göster/gizle"
+                    >
+                        <svg id="eye-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 6 0 3-3z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C2.458 12.55 2.458 13.09 2.458 14c0 .55.042 1.09.042 1.64.042 1.64 0 1.09-.042 1.64-.042.042-.042C16.58 12.55 16.58 13.09 16.58 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C17.42 12.55 17.42 13.09 17.42 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C18.25 12.55 18.25 13.09 18.25 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C19.08 12.55 19.08 13.09 19.08 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C19.92 12.55 19.92 13.09 19.92 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C20.75 12.55 20.75 13.09 20.75 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C21.58 12.55 21.58 13.09 21.58 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C22.42 12.55 22.42 13.09 22.42 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C23.25 12.55 23.25 13.09 23.25 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C24.08 12.55 24.08 13.09 24.08 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C24.92 12.55 24.92 13.09 24.92 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C24.92 12.55 24.92 13.09 24.92 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042"></path>
+                        </svg>
+                    </button>
+                    <button
+                        type="button"
+                        id="clear-api-key"
+                        class="absolute right-2 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
+                        title="API anahtarını temizle"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    <span id="api-key-status">API anahtarı kaydedilmedi</span>
+                </div>
+            </div>
+
+            <!-- Çeviri Butonu -->
+            <button
+                id="translate-btn"
+                type="button"
+                onclick="startUpload()"
+                class="w-full inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-4 py-3.5 text-sm font-semibold text-white shadow-md shadow-blue-500/30 hover:from-blue-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500/70 focus:ring-offset-2 focus:ring-offset-slate-50 dark:focus:ring-offset-slate-900 transition"
+            >
+                Çevir ve İndir
+            </button>
+
+            <!-- İlerleme Çubuğu -->
+            <div id="progress-container" class="hidden space-y-3">
+                <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden h-3">
+                    <div
+                        id="pb-fill"
+                        class="h-3 bg-emerald-500 rounded-full transition-all duration-500 ease-out"
+                        style="width: 0%;"
+                    ></div>
+                </div>
+                <div
+                    id="status-text"
+                    class="text-xs font-medium text-slate-600 dark:text-slate-300 text-center tracking-wide"
+                >
+                    Başlatılıyor...
+                </div>
+            </div>
+
+            <!-- Sonuç Container'ı -->
+            <div id="result-container" class="hidden mt-6 text-center space-y-4">
+                <div class="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200 dark:border-emerald-700/50">
+                    <p class="text-lg font-semibold text-emerald-700 dark:text-emerald-400 mb-2">✅ Çeviri Tamamlandı!</p>
+                    <a id="download-btn" href="#" class="inline-flex items-center justify-center w-full px-6 py-3.5 text-base font-semibold text-white transition-all bg-emerald-600 rounded-xl shadow-lg hover:bg-emerald-700 hover:shadow-emerald-500/30 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
+                        ⬇️ Dosyayı İndir
+                    </a>
+                </div>
+                <button onclick="location.reload()" class="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 underline">
+                    Yeni Dosya Yükle
+                </button>
+            </div>
+
+            <!-- Özet Kartı -->
+            <div id="summary-card" class="hidden mt-4 p-4 bg-gradient-to-r from-emerald-50 to-blue-50 dark:from-emerald-900/20 dark:to-blue-900/20 rounded-xl border border-emerald-200 dark:border-emerald-700/50">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="text-lg">📊</span>
+                    <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-200">Çeviri Özeti</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div class="space-y-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-500 dark:text-slate-400">📄</span>
+                            <div>
+                                <div class="font-medium text-slate-700 dark:text-slate-300" id="summary-filename">-</div>
+                                <div class="text-slate-500 dark:text-slate-400" id="summary-filesize">-</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-500 dark:text-slate-400">🤖</span>
+                            <div>
+                                <div class="font-medium text-slate-700 dark:text-slate-300" id="summary-model">-</div>
+                                <div class="text-slate-500 dark:text-slate-400" id="summary-model-status">-</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-500 dark:text-slate-400">📖</span>
+                            <div>
+                                <div class="font-medium text-slate-700 dark:text-slate-300" id="summary-pages">-</div>
+                                <div class="text-slate-500 dark:text-slate-400">Toplam Sayfa</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-500 dark:text-slate-400">⏱️</span>
+                            <div>
+                                <div class="font-medium text-slate-700 dark:text-slate-300" id="summary-time">-</div>
+                                <div class="text-slate-500 dark:text-slate-400">İşlem Süresi</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hata Mesajı Kutusu -->
+            <div
+                id="error-box"
+                class="hidden mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-500/60 dark:bg-red-900/30 dark:text-red-100"
+            ></div>
+
+            </form>
+    </div>
+</div>
+
+<script>
+    // 1. Sayfa yüklendiğinde hafızayı tara ve temayı uygula
+    document.addEventListener('DOMContentLoaded', function () {
+        renderHistory();
+        
+        // API Anahtarı Yönetimi
+        initApiKeyManagement();
+        
+        // AI Toggle Fonksiyonu
+        initAIToggle();
+        
+        // Ayarların Kalıcılığı - Geri Yükle
+        loadUserSettings();
+        
+        // Devam Eden İşlemi Kurtarma
+        checkAndResumeActiveJob();
+    });
+
+    // AI Toggle Fonksiyonu
+    function initAIToggle() {
+        const aiToggle = document.getElementById('use-ai-toggle');
+        const apiKeySection = document.getElementById('api-key-section');
+        
+        if (aiToggle && apiKeySection) {
+            // Dinamik Görünüm: Toggle durumuna göre API key alanını göster/gizle
+            aiToggle.addEventListener('change', function() {
+                const isChecked = this.checked;
+                if (isChecked) {
+                    apiKeySection.style.display = 'block';
+                } else {
+                    apiKeySection.style.display = 'none';
+                }
+                // Ayarı kaydet
+                saveUserSettings();
+            });
+        }
+    }
+
+    // Ayarların Kalıcılığı - Kaydet
+    function saveUserSettings() {
+        const settings = {
+            use_ai: document.getElementById('use-ai-toggle')?.checked || false,
+            target_lang: document.querySelector('select[name="target_lang"]')?.value || 'tr',
+            translation_tone: document.querySelector('select[name="translation_tone"]')?.value || 'general'
+        };
+        localStorage.setItem('proceviri_settings', JSON.stringify(settings));
+    }
+
+    // Ayarların Kalıcılığı - Geri Yükle
+    function loadUserSettings() {
+        const savedSettings = localStorage.getItem('proceviri_settings');
+        if (savedSettings) {
+            try {
+                const settings = JSON.parse(savedSettings);
+                
+                // AI Toggle'ı yükle
+                const aiToggle = document.getElementById('use-ai-toggle');
+                if (aiToggle && settings.use_ai !== undefined) {
+                    aiToggle.checked = settings.use_ai;
+                    // API Key alanını göster/gizle
+                    const apiKeySection = document.getElementById('api-key-section');
+                    if (apiKeySection) {
+                        apiKeySection.style.display = settings.use_ai ? 'block' : 'none';
+                    }
+                }
+                
+                // Hedef Dil'i yükle
+                const targetLangSelect = document.querySelector('select[name="target_lang"]');
+                if (targetLangSelect && settings.target_lang) {
+                    targetLangSelect.value = settings.target_lang;
+                }
+                
+                // Çeviri Tonu'nu yükle
+                const toneSelect = document.querySelector('select[name="translation_tone"]');
+                if (toneSelect && settings.translation_tone) {
+                    toneSelect.value = settings.translation_tone;
+                }
+                
+                console.log('[AYARLAR] Kullanıcı ayarları geri yüklendi');
+            } catch (error) {
+                console.error('[AYARLAR] Ayarlar yüklenirken hata:', error);
+            }
+        }
+    }
+
+    // Devam Eden İşlemi Kurtarma - Haylet İşlem Bug Fix
+    function checkAndResumeActiveJob() {
+        const activeJobId = localStorage.getItem('active_job_id');
+        if (activeJobId) {
+            console.log('[İŞLEM] Devam eden işlem bulundu:', activeJobId);
+            
+            // Önce kontrol sorgusu gönder - işlem geçerli mi?
+            fetch('/status/' + activeJobId)
+                .then(res => res.json())
+                .then(data => {
+                    // Haylet İşlem Bug Fix: Geçersiz işlemleri temizle
+                    if (data.status === 'unknown' || data.status === 'error' || 
+                        (typeof data.status === 'string' && !data.status.includes('çeviriliyor') && !data.status.includes('işleniyor'))) {
+                        console.log('[HAYLET] Geçersiz işlem tespit edildi, temizleniyor...');
+                        clearActiveJobId();
+                        
+                        // Arayüzü sıfırla ve dosya yükle moduna dön
+                        const uploadBtn = document.getElementById('translate-btn');
+                        const progressBar = document.getElementById('progress-container');
+                        const statusText = document.getElementById('status-text');
+                        
+                        if (uploadBtn) {
+                            uploadBtn.disabled = false;
+                            uploadBtn.textContent = 'Çevir ve İndir';
+                            uploadBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        }
+                        
+                        if (progressBar) {
+                            progressBar.classList.add('hidden');
+                        }
+                        
+                        if (statusText) {
+                            statusText.innerHTML = '<span class="font-semibold">Dosya seçin ve çeviriye başlayın</span>';
+                        }
+                        
+                        return; // İşlemi durdur
+                    }
+                    
+                    // İşlem geçerliyse devam et
+                    console.log('[İŞLEM] İşlem geçerli, devam ediliyor...');
+                    
+                    // Arayüzü kilitle ve göster
+                    showProgressUI();
+                    
+                    // Otomatik takip başlat
+                    startStatusPolling(activeJobId);
+                })
+                .catch(err => {
+                    console.error('[HATA] İşlem kontrolü başarısız:', err);
+                    // Hata durumunda da temizle
+                    clearActiveJobId();
+                });
+        }
+    }
+
+    // Arayüzü Kilitle ve Göster
+    function showProgressUI() {
+        const uploadBtn = document.getElementById('translate-btn');
+        const progressBar = document.getElementById('progress-container');
+        const statusText = document.getElementById('status-text');
+        
+        if (uploadBtn) {
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = 'Çeviri Devam Ediyor...';
+            uploadBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+        
+        if (progressBar) {
+            progressBar.classList.remove('hidden');
+        }
+        
+        if (statusText) {
+            // localStorage'dan sayfa sayacını yükle
+            const savedProgress = localStorage.getItem('active_progress');
+            if (savedProgress) {
+                try {
+                    const progress = JSON.parse(savedProgress);
+                    statusText.innerHTML = `<span class="font-semibold">${progress.status}</span>`;
+                } catch (e) {
+                    statusText.innerHTML = '<span class="font-semibold">İşlem devam ediyor, lütfen bekleyin...</span>';
+                }
+            } else {
+                statusText.innerHTML = '<span class="font-semibold">İşlem devam ediyor, lütfen bekleyin...</span>';
+            }
+        }
+    }
+
+    // Devam Eden İşlemi Kaydet
+    function saveActiveJobId(jobId) {
+        localStorage.setItem('active_job_id', jobId);
+        console.log('[İŞLEM] Aktif işlem kaydedildi:', jobId);
+    }
+
+    // Aktif İşlemi Temizle
+    function clearActiveJobId() {
+        localStorage.removeItem('active_job_id');
+        localStorage.removeItem('active_progress');  // Sayfa sayacını da temizle
+        console.log('[İŞLEM] Aktif işlem ve sayfa sayacı temizlendi');
+    }
+
+    // API Anahtarı Yönetim Fonksiyonları
+    function initApiKeyManagement() {
+        const apiInput = document.getElementById('groq-api-key');
+        const clearBtn = document.getElementById('clear-api-key');
+        const toggleBtn = document.getElementById('toggle-password');
+        const eyeIcon = document.getElementById('eye-icon');
+        const statusSpan = document.getElementById('api-key-status');
+        
+        if (apiInput) {
+            // Açılışta Geri Yükleme
+            const savedKey = localStorage.getItem('groq_api_key');
+            if (savedKey) {
+                apiInput.value = savedKey;
+                statusSpan.textContent = 'API anahtarı kayıtlı';
+                statusSpan.classList.add('text-emerald-600');
+                statusSpan.classList.remove('text-slate-500');
+                apiInput.classList.add('border-emerald-500');
+            }
+            
+            // Değişiklik dinleyicisi ve API Key Standartı
+            apiInput.addEventListener('input', function() {
+                const value = this.value.trim();
+                
+                if (value) {
+                    this.classList.add('border-emerald-500');
+                    statusSpan.textContent = 'API anahtarı girildi (kaydedilmemiş)';
+                    statusSpan.classList.add('text-emerald-600');
+                    statusSpan.classList.remove('text-slate-500');
+                } else {
+                    this.classList.remove('border-emerald-500');
+                    statusSpan.textContent = 'API anahtarı kaydedilmedi';
+                    statusSpan.classList.remove('text-emerald-600');
+                    statusSpan.classList.add('text-slate-500');
+                }
+            });
+            
+            // Kaydetme (blur olayında)
+            apiInput.addEventListener('blur', function() {
+                const value = this.value.trim();
+                if (value) {
+                    localStorage.setItem('groq_api_key', value);
+                    statusSpan.textContent = 'API anahtarı kaydedildi';
+                    console.log('[API] Anahtar localStorage\'a kaydedildi');
+                } else {
+                    localStorage.removeItem('groq_api_key');
+                    statusSpan.textContent = 'API anahtarı kaydedilmedi';
+                    console.log('[API] Anahtar localStorage\'dan silindi');
+                }
+            });
+        }
+        
+        // Göster/Gizle Butonu
+        if (toggleBtn && eyeIcon) {
+            toggleBtn.addEventListener('click', function() {
+                const type = apiInput.type === 'password' ? 'text' : 'password';
+                apiInput.type = type;
+                
+                // İkonu değiştir
+                if (type === 'text') {
+                    eyeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>';
+                } else {
+                    eyeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 6 0 3-3z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C2.458 12.55 2.458 13.09 2.458 14c0 .55.042 1.09.042 1.64.042 1.64 0 1.09-.042 1.64-.042.042-.042C16.58 12.55 16.58 13.09 16.58 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C17.42 12.55 17.42 13.09 17.42 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C18.25 12.55 18.25 13.09 18.25 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C19.08 12.55 19.08 13.09 19.08 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C19.92 12.55 19.92 13.09 19.92 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C20.75 12.55 20.75 13.09 20.75 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C21.58 12.55 21.58 13.09 21.58 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C22.42 12.55 22.42 13.09 22.42 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C23.25 12.55 23.25 13.09 23.25 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C24.08 12.55 24.08 13.09 24.08 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042C24.92 12.55 24.92 13.09 24.92 14c0 .55-.042 1.09-.042 1.64-.042.042-.042-.042"></path>';
+                }
+            });
+        }
+        
+        // Temizle Butonu
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+                apiInput.value = '';
+                localStorage.removeItem('groq_api_key');
+                apiInput.classList.remove('border-emerald-500');
+                statusSpan.textContent = 'API anahtarı kaydedilmedi';
+                statusSpan.classList.remove('text-emerald-600');
+                statusSpan.classList.add('text-slate-500');
+                console.log('[API] Anahtar temizlendi');
+            });
+        }
+    }
+
+    // Dropdown Değişikliklerini Dinle
+    function initDropdownListeners() {
+        // Hedef Dil dropdown'ı
+        const targetLangSelect = document.querySelector('select[name="target_lang"]');
+        if (targetLangSelect) {
+            targetLangSelect.addEventListener('change', saveUserSettings);
+        }
+        
+        // Çeviri Tonu dropdown'ı
+        const toneSelect = document.querySelector('select[name="translation_tone"]');
+        if (toneSelect) {
+            toneSelect.addEventListener('change', saveUserSettings);
+        }
+    }
+
+    // Sayfa yüklendiğinde dropdown dinleyicilerini başlat
+    document.addEventListener('DOMContentLoaded', function() {
+        initDropdownListeners();
+    });
+
+    // 2. Dosya Yükleme Başlatma
+    function startUpload() {
+        const form = document.getElementById('upload-form');
+        const formData = new FormData(form);
+        const errorBox = document.getElementById('error-box');
+        const translateBtn = document.getElementById('translate-btn');
+        const progressContainer = document.getElementById('progress-container');
+
+        if (errorBox) errorBox.classList.add('hidden');
+
+        // Yeni dosya yüklendiğinde eski aktif işi temizle
+        clearActiveJobId();
+
+        // API anahtarını tarayıcıya kaydet (Otomatik Kayıt)
+        const apiKey = formData.get('api_key');
+        if (apiKey) {
+            localStorage.setItem('groq_api_key', apiKey.trim());
+            document.getElementById('api-key-status').textContent = 'API anahtarı kaydedildi';
+            document.getElementById('api-key-status').classList.add('text-emerald-600');
+            document.getElementById('api-key-status').classList.remove('text-slate-500');
+        }
+
+        translateBtn.classList.add('hidden');
+        progressContainer.classList.remove('hidden');
+
+        fetch('/upload', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                
+                // Job ID'yi kaydet
+                saveActiveJobId(data.job_id);
+                
+                // Status kontrolünü başlat
+                startStatusPolling(data.job_id);
+            })
+            .catch(err => {
+                progressContainer.classList.add('hidden');
+                translateBtn.classList.remove('hidden');
+                
+                // Hata durumunda aktif işi temizle
+                clearActiveJobId();
+                
+                if (errorBox) {
+                    errorBox.textContent = err.message || 'Bir hata oluştu.';
+                    errorBox.classList.remove('hidden');
+                }
+            });
+    }
+
+    // 3. Çeviri Durumu Sorgulama - Otomatik Temizlik ile
+    let startTime = null;
+    let lastResponseTime = Date.now();
+    
+    function startStatusPolling(jobId) {
+        if (!startTime) startTime = Date.now();
+        
+        const interval = setInterval(() => {
+            // 5 saniye boyunca cevap gelmezse kontrol et
+            if (Date.now() - lastResponseTime > 5000) {
+                document.getElementById('status-text').innerHTML = '<span class="font-semibold">Sunucu meşgul, bekleniyor...</span>';
+                console.log("Sunucu cevap vermiyor, bekleniyor...");
+            }
+            
+            fetch('/status/' + jobId)
+                .then(res => {
+                    lastResponseTime = Date.now(); // Başarılı cevap zamanını güncelle
+                    return res.json();
+                })
+                .then(data => {
+                    lastResponseTime = Date.now(); // Başarılı cevap zamanını güncelle
+                    
+                    // Haylet İşlem Bug Fix: Sadece hatalı işlemleri temizle (completed hariç)
+                    if (data.status === 'error' || 
+                        (typeof data.status === 'string' && data.status.includes('Tamamlandı'))) {
+                        console.log('[OTOMATIK] İşlem tamamlandı, aktif iş temizleniyor...');
+                        clearActiveJobId();
+                        clearInterval(interval);
+                        
+                        // Arayüzü normal moda döndür
+                        const uploadBtn = document.getElementById('translate-btn');
+                        const progressBar = document.getElementById('progress-container');
+                        const statusText = document.getElementById('status-text');
+                        
+                        if (uploadBtn) {
+                            uploadBtn.disabled = false;
+                            uploadBtn.textContent = 'Çevir ve İndir';
+                            uploadBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        }
+                        
+                        if (progressBar) {
+                            progressBar.classList.add('hidden');
+                        }
+                        
+                        if (statusText) {
+                            statusText.innerHTML = '<span class="font-semibold">Dosya seçin ve çeviriye başlayın</span>';
+                        }
+                        
+                        return; // İşlemi durdur
+                    }
+                    
+                    // Dinamik durum mesajları
+                    if (data.status && data.status.includes('sayfa işleniyor')) {
+                        const percent = (data.current / data.total) * 100;
+                        document.getElementById('pb-fill').style.width = percent + '%';
+                        document.getElementById('status-text').innerHTML = `<span class="font-semibold">${data.status}</span>`;
+                    } else if (data.status && data.status.includes('sayfa çiziliyor')) {
+                        document.getElementById('pb-fill').style.width = Math.min((data.current / data.total) * 100 + 10, 90) + '%';
+                        document.getElementById('status-text').innerHTML = `<span class="font-semibold">${data.status}</span>`;
+                    } else if (data.status === 'Dosyalar birleştiriliyor...') {
+                        document.getElementById('pb-fill').style.width = '95%';
+                        document.getElementById('status-text').innerHTML = '<span class="font-semibold">Dosyalar birleştiriliyor...</span>';
+                    } else if (data.status === 'completed') {
+                        clearInterval(interval);  // Döngüyü durdur
+                        document.getElementById('pb-fill').style.width = '100%';
+                        document.getElementById('status-text').innerHTML = '<span class="font-semibold text-emerald-600">✅ Tamamlandı!</span>';
+                        
+                        // İndirme Butonunu Göster
+                        showDownloadButton(data.download_url);
+                        
+                        // İşlem tamamlandı - aktif işi temizle
+                        clearActiveJobId();
+                        
+                        // Özet kartı oluştur
+                        createSummaryCard(data, jobId);
+                        
+                        console.log('İşlem bitti, result-container açılıyor:', data.download_url);
+
+                        // Lokal hafızaya kaydet
+                        const fileInput = document.querySelector('input[type="file"]');
+                        const originalName = fileInput.files[0] ? fileInput.files[0].name : "Bilinmeyen Dosya";
+                        const fileSize = fileInput.files[0] ? formatFileSize(fileInput.files[0].size) : "Bilinmeyen Boyut";
+                        saveToLocalHistory(originalName, data.download_url, fileSize, data.total, startTime);
+                    } else if (data.status && data.status.includes('İşlem sıraya alındı')) {
+                        document.getElementById('pb-fill').style.width = '5%';
+                        document.getElementById('status-text').innerHTML = `<span class="font-semibold">${data.status}</span>`;
+                    } else {
+                        // Varsayılan durumlar için geriye dönük uyumluluk - Undefined Fix
+                        let total = data.total || 0;
+                        let current = data.current || 0;
+                        
+                        if (total > 0) {
+                            const percent = (current / total) * 100;
+                            document.getElementById('pb-fill').style.width = percent + '%';
+                            document.getElementById('status-text').innerHTML = `<span class="font-semibold">Sayfa ${current} / ${total} çevriliyor...</span>`;
+                        } else {
+                            document.getElementById('pb-fill').style.width = '5%';
+                            document.getElementById('status-text').innerHTML = '<span class="font-semibold">Dosya analiz ediliyor, lütfen bekleyin...</span>';
+                        }
+                    }
+                    
+                    // Sayfa sayacını localStorage'a kaydet
+                    if (data.current && data.total) {
+                        localStorage.setItem('active_progress', JSON.stringify({
+                            current: data.current,
+                            total: data.total,
+                            status: data.status
+                        }));
+                    }
+                })
+                .catch(err => {
+                    console.error("Status fetch error:", err);
+                    lastResponseTime = Date.now(); // Hata durumunda da zamanı güncelle
+                    
+                    // Hata durumunda aktif işi temizle
+                    if (err.message && err.message.includes('404')) {
+                        // Job bulunamadı, temizle
+                        clearActiveJobId();
+                        clearInterval(interval);
+                        document.getElementById('status-text').innerHTML = '<span class="font-semibold text-red-600">❌ İşlem bulunamadı</span>';
+                        document.getElementById('translate-btn').classList.remove('hidden');
+                        document.getElementById('progress-container').classList.add('hidden');
+                    }
+                });
+        }, 1000);
+    }
+
+    // İndirme Butonunu Göster
+    function showDownloadButton(downloadUrl) {
+        const progressContainer = document.getElementById('progress-container');
+        const resultContainer = document.getElementById('result-container');
+        const downloadBtn = document.getElementById('download-btn');
+        
+        // Progress container'ı gizle
+        if (progressContainer) {
+            progressContainer.classList.add('hidden');
+        }
+        
+        // Result container'ı göster
+        if (resultContainer) {
+            resultContainer.classList.remove('hidden');
+        }
+        
+        // Download butonunu ayarla
+        if (downloadBtn) {
+            downloadBtn.href = downloadUrl;
+            console.log('İşlem bitti, buton açılıyor:', downloadUrl);
+        }
+    }
+
+    // 4. Özet Kartı Oluşturma
+    function createSummaryCard(data, jobId) {
+        const fileInput = document.querySelector('input[type="file"]');
+        const originalName = fileInput.files[0] ? fileInput.files[0].name : "Bilinmeyen Dosya";
+        const fileSize = fileInput.files[0] ? formatFileSize(fileInput.files[0].size) : "Bilinmeyen Boyut";
+        
+        // AI toggle durumunu kontrol et ve doğru motor adını belirle
+        const aiToggle = document.getElementById('use-ai-toggle');
+        let modelName;
+        if (aiToggle && aiToggle.checked) {
+            modelName = 'Groq AI (Llama 3.3)';
+        } else {
+            modelName = 'Google Translate';
+        }
+        
+        const processingTime = startTime ? formatProcessingTime(Date.now() - startTime) : "Bilinmeyen Süre";
+        
+        // Özet kartını doldur
+        document.getElementById('summary-filename').textContent = originalName;
+        document.getElementById('summary-filesize').textContent = fileSize;
+        document.getElementById('summary-model').textContent = modelName;
+        document.getElementById('summary-model-status').textContent = data.status_message || 'Başarılı';
+        document.getElementById('summary-pages').textContent = data.total || '0';
+        document.getElementById('summary-time').textContent = processingTime;
+        
+        // Özet kartını göster
+        document.getElementById('summary-card').classList.remove('hidden');
+    }
+
+    // 5. localStorage Kayıt Mantığı
+    function saveToLocalHistory(name, url, fileSize, totalPages, startTime) {
+    let history = JSON.parse(localStorage.getItem('pdf_cevirileri') || '[]');
+    
+    // Dosyanın benzersiz adını URL'den çek (job_id içerdiği için eşsizdir)
+    const translatedName = url.split('/').pop();
+
+    // --- KRİTİK KONTROL: Eğer bu dosya zaten listede varsa fonksiyonu bitir ---
+    if (history.some(item => item.translated_name === translatedName)) {
+        return; 
+    }
+
+    // AI toggle durumunu kontrol et ve doğru motor adını belirle
+    const aiToggle = document.getElementById('use-ai-toggle');
+    let modelName;
+    if (aiToggle && aiToggle.checked) {
+        modelName = 'Groq';
+    } else {
+        modelName = 'Google';
+    }
+    
+    history.unshift({
+        original_name: name,
+        translated_name: translatedName,
+        date: new Date().toLocaleString('tr-TR'),
+        model: modelName,
+        download_url: url,
+        file_size: fileSize || '-',
+        pages: totalPages || 0,
+        processing_time: startTime ? formatProcessingTime(Date.now() - startTime) : '-'
+    });
+
+    localStorage.setItem('pdf_cevirileri', JSON.stringify(history.slice(0, 10)));
+    renderHistory();
+}
+
+// 6. Yardımcı Fonksiyonlar
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function formatProcessingTime(ms) {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    
+    if (hours > 0) {
+        return `${hours} saat ${minutes % 60} dakika`;
+    } else if (minutes > 0) {
+        return `${minutes} dakika ${seconds % 60} saniye`;
+    } else {
+        return `${seconds} saniye`;
+    }
+}
+
+// 7. Geçmişi Ekrana Basma
+    function renderHistory() {
+        const listDiv = document.getElementById('history-list');
+        if (!listDiv) return;
+        const history = JSON.parse(localStorage.getItem('pdf_cevirileri') || '[]');
+
+        if (history.length === 0) {
+            listDiv.innerHTML = '<div class="p-4 text-center text-sm text-slate-500 italic">Henüz bir çeviri yapılmadı.</div>';
+            return;
+        }
+
+        let html = `<table class="min-w-full text-sm"><thead><tr class="text-left text-xs uppercase text-slate-400 border-b border-slate-700"><th class="py-2">Dosya</th><th class="py-2">Model</th><th class="py-2 text-right">İşlem</th></tr></thead><tbody class="divide-y divide-slate-700">`;
+        
+        history.forEach(item => {
+            // Dinamik model badge'i oluştur
+            let modelBadge;
+            if (item.model === 'Groq') {
+                modelBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-900/30 text-emerald-400 border border-emerald-600/30">Groq AI</span>';
+            } else if (item.model === 'Google') {
+                modelBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700/50 text-slate-300 border border-slate-600/30">Standart</span>';
+            } else {
+                // Eski veriler için (Flash/Pro) varsayılan badge
+                modelBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700/50 text-slate-400 border border-slate-600/30">Eski</span>';
+            }
+            
+            html += `
+            <tr class="text-slate-300">
+                <td class="py-3">
+                    <div class="font-medium text-slate-200 truncate max-w-[150px] md:max-w-xs">${item.original_name}</div>
+                    <div class="text-[10px] text-slate-500">${item.date}</div>
+                </td>
+                <td class="py-3">
+                    ${modelBadge}
+                </td>
+                <td class="py-3 text-right">
+                    <a href="${item.download_url}" class="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white text-xs rounded-lg border border-emerald-600/30 transition-all shadow-sm">📥 İndir</a>
+                </td>
+            </tr>`;
+        });
+        listDiv.innerHTML = html + `</tbody></table>`;
+    }
+
+    // 6. Yardımcı Fonksiyonlar (Temizle & Toggle)
+    function clearLocalHistory() {
+        if (confirm('Tüm çeviri geçmişinizi silmek istediğinize emin misiniz? Bu işlem eski "Flash" etiketli kayıtları da silecek ve sistemi sıfırlayacaktır.')) {
+            localStorage.removeItem('pdf_cevirileri');
+            renderHistory();
+            // Kullanıcıya bildirim göster
+            const historyPanel = document.getElementById('history-panel');
+            if (historyPanel) {
+                const notification = document.createElement('div');
+                notification.className = 'p-3 mb-3 bg-emerald-900/20 border border-emerald-600/30 rounded-lg text-emerald-400 text-sm';
+                notification.textContent = '✅ Geçmiş başarıyla temizlendi. Sistem sıfırlandı.';
+                historyPanel.insertBefore(notification, historyPanel.firstChild);
+                // 3 saniye sonra bildirim kaybolur
+                setTimeout(() => notification.remove(), 3000);
+            }
+        }
+    }
+
+    function toggleHistory() {
+        const panel = document.getElementById('history-panel');
+        const chevron = document.getElementById('history-chevron');
+        if (panel) {
+            const isHidden = panel.classList.toggle('hidden');
+            if (chevron) chevron.classList.toggle('rotate-180', !isHidden);
+        }
+    }
+
+    // 7. Dark Mode Yönetimi
+    document.getElementById('theme-toggle')?.addEventListener('click', function() {
+        const isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    });
+</script>
+
+<!-- 📜 Son Çeviriler / Geçmiş -->
+<div class="w-full max-w-4xl mx-auto px-4 mt-6">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-100 dark:border-slate-700 p-6">
+        <div class="flex items-center justify-between gap-3 mb-2">
+            <button type="button" onclick="toggleHistory()" class="flex items-center gap-2 text-base md:text-lg font-semibold text-slate-900 dark:text-white">
+                <span>📜</span>
+                <span>Geçmişim (Sadece Sizin Tarayıcınızda)</span>
+                <span id="history-chevron" class="text-sm text-slate-500 dark:text-slate-300 transition-transform">⌄</span>
+            </button>
+            <button onclick="clearLocalHistory()" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-red-700 transition">
+                🗑️ Geçmişi Temizle
+            </button>
+        </div>
+        <div id="history-panel" class="mt-2">
+            <div id="history-list" class="overflow-x-auto"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Sayfa Altbilgisi (Footer) -->
+<footer class="w-full border-t border-slate-200 dark:border-slate-700 mt-auto py-4">
+    <div class="max-w-4xl mx-auto px-4 text-center text-[11px] text-slate-500/80 dark:text-slate-500">
+        © 2026 ProCeviri V1.0 | Geliştirici: Ahmet Ziya OĞUZ | Recep Tayyip Erdoğan Üniversitesi
+    </div>
+</footer>
+
+</body>
+</html>
